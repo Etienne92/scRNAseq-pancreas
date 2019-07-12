@@ -2,7 +2,7 @@ import pandas as pd
 import argparse
 
 parser = argparse.ArgumentParser(description='Merge the results of all methods into one single csv file.')
-parser.add_argument("-python",type=str)
+parser.add_argument("-ols",type=str)
 parser.add_argument("-edger",type=str)
 parser.add_argument("-deseq2",type=str)
 parser.add_argument("-mixed",type=str)
@@ -11,8 +11,8 @@ args=parser.parse_args()
 
 results={}
 
-python_results = pd.read_csv(args.python)
-results["OLS"]= [f"{python_results.loc[i,'gene']} ({float(python_results.loc[i,'adj p-value']):.3})" for i in range(python_results.shape[0])][:1000]
+ols_results = pd.read_csv(args.ols)
+results["OLS"]= [f"{ols_results.loc[i,'gene']} ({float(ols_results.loc[i,'adj p-value']):.3})" for i in range(ols_results.shape[0])][:1000]
 
 edger_results = pd.read_csv(args.edger)
 results["edgeR"]= [f"{edger_results.loc[i,'genes']} ({float(edger_results.loc[i,'FDR']):.3})" for i in range(edger_results.shape[0])][:1000]

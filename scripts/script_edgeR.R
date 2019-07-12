@@ -48,4 +48,4 @@ fit <- glmQLFit(y, design) #robust True ?
 qlf <- glmQLFTest(fit)
 topTags(qlf)
 results <- topTags(qlf, n=Inf, adjust.method="BH", sort.by="PValue")
-write.csv(as.data.frame(results), file="edgeR_results.csv")
+write.csv(as.data.frame(results), file="results_edgeR.csv")

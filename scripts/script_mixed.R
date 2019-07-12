@@ -33,4 +33,4 @@ adj_pvals = p.adjust(results,method="BH")
 df = data.frame("adj p-val"=adj_pvals,"p-val"=unlist(results))
 colnames(df)[1] <- "gene"
 
-write.csv(df, file="mixed_results.csv")
+write.csv(df, file="results_mixed.csv")

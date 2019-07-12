@@ -2,29 +2,25 @@
 
 scripts="${workflow.projectDir}/scripts"
 
-DATASETS = Channel.fromPath("datasets/*", checkIfExists: true,type:'dir').collect()
-
 process merge_matrices{
     conda "${workflow.projectDir}/envs/scanpy.yml"
     memory { 16.GB * task.attempt }
     errorStrategy { task.exitStatus == 130 ? 'retry' : 'finish' }
     maxRetries 2
-    input:
-        file datasets from DATASETS
-        
     output:
         file "merged_counts_matrix.h5ad" into MERGED_COUNTS_MATRIX
 
     """
-        python ${scripts}/merge_matrices.py ${datasets} 
+        python ${scripts}/merge_matrices.py -datasets ${params.pipeline.datasets} -folder ${params.datasets} 
     """
 }
 
 MERGED_COUNTS_MATRIX.into{
     COUNTS_FOR_SCANPY
-    COUNTS_FOR_PYTHON
+    COUNTS_FOR_OLS
     COUNTS_FOR_R
     COUNTS_FOR_R_NORM
+    COUNTS_FOR_BOXPLOT
 }
 
 process scanpy_pipeline {
@@ -32,31 +28,31 @@ process scanpy_pipeline {
     memory { 8.GB * task.attempt }
     errorStrategy { task.exitStatus == 130 ? 'retry' : 'finish' }
     maxRetries 2
-    publishDir "results", mode: 'copy', overwrite: true
+    publishDir "${PWD}/results", mode: 'copy', overwrite: true
     input:
         file counts from COUNTS_FOR_SCANPY
     output:
         file "processed_anndata.h5ad" into PROCESSED_ANNDATA
 
     """
-        python ${scripts}/scanpy_pipeline.py -i ${counts} -o processed_anndata.h5ad -datasets ${params.datasets}
+        python ${scripts}/scanpy_pipeline.py -i ${counts} -o processed_anndata.h5ad -datasets ${params.pipeline.datasets}
     """
 }
 
-process python_de {
+process ordinary_least_squares {
     conda "${workflow.projectDir}/envs/scanpy.yml"
     memory { 8.GB * task.attempt }
     errorStrategy { task.exitStatus == 130 ? 'retry' : 'finish' }
     maxRetries 2
-    publishDir "results", mode: 'copy', overwrite: true
+    publishDir "${PWD}/results/partial_results", mode: 'copy', overwrite: true
     input:
-        file counts from COUNTS_FOR_PYTHON
+        file counts from COUNTS_FOR_OLS
         
     output:
-        file "python_pvalues.csv" into PYTHON_PVALUES
+        file "results_ols.csv" into RESULTS_OLS
 
     """
-        python ${scripts}/python_de.py -i ${counts} -celltype ${params.celltype} -datasets ${params.datasets} -design ${params.design} -${params.mean}
+        python ${scripts}/ols.py -i ${counts} -celltype ${params.de.celltype} -datasets ${params.de.datasets} -design ${params.de.design} -pseudobulk ${params.de.pseudobulk}
     """
 }
 
@@ -75,7 +71,7 @@ process h5ad_to_R {
         file "cells.csv" into CELLS_R
 
     """
-        python ${scripts}/h5ad_to_R.py -i ${counts} -celltype ${params.celltype} -datasets ${params.datasets} -${params.mean}
+        python ${scripts}/h5ad_to_R.py -i ${counts} -celltype ${params.de.celltype} -datasets ${params.de.datasets} -pseudobulk ${params.de.pseudobulk}
     """
 }
 COUNTS_R.into{
@@ -96,11 +92,11 @@ CELLS_R.into{
 }
 
 process DESeq2 {
-    conda "${workflow.projectDir}/envs/DESeq2.yml"
+    conda "${workflow.projectDir}/envs/Renv.yml"
     memory { 8.GB * task.attempt }
     errorStrategy { task.exitStatus == 130 ? 'retry' : 'finish' }
     maxRetries 2
-    publishDir "results", mode: 'copy', overwrite: true
+    publishDir "${PWD}/results/partial_results", mode: 'copy', overwrite: true
     input:
         file counts from COUNTS_DESEQ2
         file coldata from COLDATA_DESEQ2
@@ -108,19 +104,19 @@ process DESeq2 {
         file cells from CELLS_DESEQ2
         
     output:
-        file "DESeq2_results.csv" into RESULTS_DESEQ2
+        file "results_DESeq2.csv" into RESULTS_DESEQ2
 
     """
-        Rscript ${scripts}/script_DESeq2.R ${counts} ${coldata} ${genes} ${cells} ${params.design}
+        Rscript ${scripts}/script_DESeq2.R ${counts} ${coldata} ${genes} ${cells} ${params.de.design}
     """
 }
 
 process edgeR {
-    conda "${workflow.projectDir}/envs/edgeR.yml"
+    conda "${workflow.projectDir}/envs/Renv.yml"
     memory { 4.GB * task.attempt }
     errorStrategy { task.exitStatus == 130 ? 'retry' : 'finish' }
     maxRetries 2
-    publishDir "results", mode: 'copy', overwrite: true
+    publishDir "${PWD}/results/partial_results", mode: 'copy', overwrite: true
     input:
         file counts from COUNTS_EDGER
         file coldata from COLDATA_EDGER
@@ -128,10 +124,10 @@ process edgeR {
         file cells from CELLS_EDGER
         
     output:
-        file "edgeR_results.csv" into RESULTS_EDGER
+        file "results_edgeR.csv" into RESULTS_EDGER
 
     """
-        Rscript ${scripts}/script_edgeR.R ${counts} ${coldata} ${genes} ${cells} ${params.design}
+        Rscript ${scripts}/script_edgeR.R ${counts} ${coldata} ${genes} ${cells} ${params.de.design}
     """
 }
 
@@ -150,16 +146,16 @@ process h5ad_to_R_norm {
         file "cells.csv" into CELLS_R_NORM
 
     """
-        python ${scripts}/h5ad_to_R.py -i ${counts} -celltype ${params.celltype} -datasets ${params.datasets} -nomean -normalize
+        python ${scripts}/h5ad_to_R.py -i ${counts} -celltype ${params.de.celltype} -datasets ${params.de.datasets} -pseudobulk False -normalize
     """
 }
 
 process mixed_model {
-    conda "${workflow.projectDir}/envs/lme4.yml"
+    conda "${workflow.projectDir}/envs/Renv.yml"
     memory { 8.GB * task.attempt }
     errorStrategy { task.exitStatus == 130 ? 'retry' : 'finish' }
     maxRetries 2
-    publishDir "results", mode: 'copy', overwrite: true
+    publishDir "${PWD}/results/partial_results", mode: 'copy', overwrite: true
     input:
         file counts from COUNTS_R_NORM
         file coldata from COLDATA_R_NORM
@@ -167,10 +163,10 @@ process mixed_model {
         file cells from CELLS_R_NORM
         
     output:
-        file "mixed_results.csv" into RESULTS_MIXED
+        file "results_mixed.csv" into RESULTS_MIXED
 
     """
-        Rscript ${scripts}/mixed_model.R ${counts} ${coldata} ${genes} ${cells} ${params.design}
+        Rscript ${scripts}/script_mixed.R ${counts} ${coldata} ${genes} ${cells} ${params.de.design}
     """
 }
 
@@ -179,17 +175,36 @@ process merge_results {
     memory { 2.GB * task.attempt }
     errorStrategy { task.exitStatus == 130 ? 'retry' : 'finish' }
     maxRetries 2
-    publishDir "results", mode: 'copy', overwrite: true
+    publishDir "${PWD}/results", mode: 'copy', overwrite: true
     input:
-        file python_results from PYTHON_PVALUES
-        file deseq2_results from RESULTS_DESEQ2
-        file edger_results from RESULTS_EDGER
-        file mixed_results from RESULTS_MIXED
+        file results_ols from RESULTS_OLS
+        file results_DESeq2 from RESULTS_DESEQ2
+        file results_edgeR from RESULTS_EDGER
+        file results_mixed from RESULTS_MIXED
         
     output:
         file "results_complete.csv" into RESULTS_COMPLETE
 
     """
-        python ${scripts}/merge_results.py -python ${python_results} -deseq2 ${deseq2_results} -edger ${edger_results} -mixed ${mixed_results}
+        python ${scripts}/merge_results.py -ols ${results_ols} -deseq2 ${results_DESeq2} -edger ${results_edgeR} -mixed ${results_mixed}
+    """
+}
+
+process boxplots {
+    conda "${workflow.projectDir}/envs/scanpy.yml"
+    memory { 8.GB * task.attempt }
+    errorStrategy { task.exitStatus == 130 ? 'retry' : 'finish' }
+    maxRetries 2
+    publishDir "${PWD}/results", mode: 'copy', overwrite: true
+    input:
+        file results from RESULTS_COMPLETE
+        file anndata from COUNTS_FOR_BOXPLOT
+
+        
+    output:
+        file "boxplots" into BOXPLOTS
+
+    """
+        python ${scripts}/plot_expressions_donors.py -anndata ${anndata} -results ${results} -celltype ${params.de.celltype} -datasets ${params.de.datasets} -correct_covariates ${params.plot.correct_covariates}
     """
 }

@@ -18,4 +18,4 @@ print(dds)
 resOrdered <- res[order(res$pvalue),]
 print(resOrdered)
 print(summary(res))
-write.csv(as.data.frame(resOrdered), file="DESeq2_results.csv")
+write.csv(as.data.frame(resOrdered), file="results_DESeq2.csv")

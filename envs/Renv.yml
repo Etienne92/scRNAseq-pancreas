@@ -1,0 +1,5 @@
+name: Renv
+dependencies:
+  - r-lme4
+  - bioconductor-deseq2
+  - bioconductor-edgeR

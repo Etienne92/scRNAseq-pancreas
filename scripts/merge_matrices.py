@@ -4,9 +4,19 @@ import scipy
 import anndata
 import numpy as np
 import sys
+import os
 from ID2name import ID2name_converter
 
+import argparse
 
+
+
+parser = argparse.ArgumentParser(description='Merge several expression matrices and add metadata.')
+parser.add_argument("-datasets",type=str,help="Datasets to use")
+parser.add_argument("-folder",type=str,help="Folder containing the datasets")
+args=parser.parse_args()
+
+datasets = args.datasets.split(",")
 
 def add_metadata(adata,sdrfpath):
     """Parse the sdrf file and add the metadata to the anndata"""
@@ -15,12 +25,14 @@ def add_metadata(adata,sdrfpath):
         enaIndex=-1
         infoIndex={}
         infoData={}
+        useful_info = ["body mass index","bmi","age","sex","inferred cell type","ancestry category","ethnic group","disease","individual","inferred cell type"]
         for i in range(len(header)):
             if header[i][:15]=="Characteristics" or header[i][:12]=="Factor Value":
                 s=header[i]
                 info = s[s.find("[")+1:s.find("]")] #select the substring between the brackets
-                infoIndex[info]=i
-                infoData[info]={}
+                if info in useful_info:
+                    infoIndex[info]=i
+                    infoData[info]={}
             if header[i]=="Comment[ENA_RUN]" or header[i] == "Comment [ENA_RUN]" or header[i] == "Source Name":
                 enaIndex=i
         for line in sdrf:
@@ -30,16 +42,25 @@ def add_metadata(adata,sdrfpath):
                 for info in infoIndex:
                     infoData[info][ena]=linesplit[infoIndex[info]].rstrip()
 
-        #Make metadata names consistent across datasets
+        #Rename some metadata names (remove spaces and make consistent across datasets)
         if "bmi" in infoData:
-            infoData["body mass index"] = infoData.pop("bmi")
-            infoIndex["body mass index"] = infoIndex.pop("bmi")
+            infoData["body_mass_index"] = infoData.pop("bmi")
+            infoIndex["body_mass_index"] = infoIndex.pop("bmi")
+        if "body mass index" in infoData:
+            infoData["body_mass_index"] = infoData.pop("body mass index")
+            infoIndex["body_mass_index"] = infoIndex.pop("body mass index")
         if "ancestry category" in infoData:
-            infoData["ethnic group"] = infoData.pop("ancestry category")
-            infoIndex["ethnic group"] = infoIndex.pop("ancestry category")
+            infoData["ethnic_group"] = infoData.pop("ancestry category")
+            infoIndex["ethnic_group"] = infoIndex.pop("ancestry category")
+        if "ethnic group" in infoData:
+            infoData["ethnic_group"] = infoData.pop("ethnic group")
+            infoIndex["ethnic_group"] = infoIndex.pop("ethnic group")
+        if "inferred cell type" in infoData:
+            infoData["inferred_cell_type"] = infoData.pop("inferred cell type")
+            infoIndex["inferred_cell_type"] = infoIndex.pop("inferred cell type")
 
         #Quantitative information is converted to numeric values, so that cellxgene can use it as continuous metadata, instead of categorical.
-        quantitative_info=["age","body mass index"]
+        quantitative_info=["age","body_mass_index"]
         for info in infoIndex:
             if not info in quantitative_info:
                 adata.obs[info]=pd.Series(infoData[info])
@@ -51,38 +72,13 @@ def add_metadata(adata,sdrfpath):
 cell_types = {"pancreatic A cell": "alpha cell","pancreatic D cell":"delta cell","pancreatic ductal cell":"ductal cell","pancreatic epsilon cell":"epsilon cell","pancreatic PP cell": "PP cell",
  "pancreatic stellate cell":"stellate cell","type B pancreatic cell": "beta cell"}
 
-
-datasets = sys.argv[1:]
-
-dfs=[]
-attributes = {
-    "dataset":[],
-    "individual":[],
-    "inferred cell type":[],
-    "disease":[],
-    "body mass index":[],
-    "age":[],
-    "sex":[],
-    "ethnic group":[],
-    "n_counts":[]
-}
+adatas = []
 for dataset in datasets:
-    adata = sc.read_10x_mtx(dataset)
+    folder = args.folder + "/" + dataset
+    adata = sc.read_10x_mtx(folder)
     sc.pp.filter_cells(adata,min_counts = 0) #just for getting the counts for each cell
-    add_metadata(adata,dataset+"/sdrf.txt")
-    adata = adata[adata.obs["inferred cell type"]!="not applicable"] #Filter out samples which are not single cells
-    matrix = adata.X.todense()
-    df = pd.DataFrame(matrix)
-    df.index = adata.obs.index
-    df.columns = adata.var.index
-    dfs.append(df)
-    attributes["dataset"] = attributes["dataset"] + [dataset] * df.shape[0]
-    for attribute in attributes:
-        if attribute != "dataset" and attribute!="individual":
-            if attribute in adata.obs:
-                attributes[attribute] = attributes[attribute] + list(adata.obs[attribute])
-            else:
-                attributes[attribute] = attributes[attribute] + ["not available"] * len(adata.obs)
+    add_metadata(adata,folder+"/sdrf.txt")
+    adata = adata[adata.obs["inferred_cell_type"]!="not applicable"] #Filter out samples which are not single cells
 
     #Change the names of the donors to reflect their disease: H1,H2,H3... for healthy and D1,D2,D3 for patients with T2D
     individual_mapping={} 
@@ -96,25 +92,19 @@ for dataset in datasets:
             else:
                 individual_mapping[adata.obs["individual"][i]] = dataset + "_D"+str(counts_diabetic)
                 counts_diabetic+=1
-    attributes["individual"] = attributes["individual"] + [individual_mapping.get(individual,individual) for individual in adata.obs["individual"]]
+    adata.obs["individual"].replace(individual_mapping,inplace=True)
+    adata.obs["inferred_cell_type"].replace(cell_types,inplace=True)  #unify cell type names across datasets
+    adata.obs["disease"].replace({"type II diabetes mellitus":"T2D"},inplace=True)
+    adata.var.drop("gene_ids",axis=1,inplace=True)
 
-attributes["inferred cell type"] = [cell_types.get(celltype,celltype) for celltype in attributes["inferred cell type"]] #unify cell type names across datasets
-attributes["disease"] = [x if x=="normal" else "T2D" for x in attributes["disease"]]
-merged_df = pd.concat(dfs,sort=True)
-merged_df.fillna(0, inplace=True)
+    adatas.append(adata)
 
-sparse_merged_matrix = scipy.sparse.csr.csr_matrix(merged_df)
+merged = adatas[0].concatenate(adatas[1:],batch_key = "dataset",batch_categories = datasets)
 
-adata = anndata.AnnData(sparse_merged_matrix)
-adata.obs.index = merged_df.index
-adata.var.index = merged_df.columns
-for attribute in attributes:
-    corrected_name = attribute.replace(" ","_")
-    adata.obs[corrected_name] = attributes[attribute]
 
 #Use gene names instead of gene IDs. 
-converter=ID2name_converter("../data/Homo_sapiens.GRCh38.95.gtf.gz")
-adata.var.index = adata.var.index.map(lambda x: converter.id2name(x))
-adata.var_names_make_unique()
+converter=ID2name_converter(os.path.dirname(sys.argv[0]) +"/../data/Homo_sapiens.GRCh38.95.gtf.gz")
+merged.var.index = merged.var.index.map(lambda x: converter.id2name(x))
+merged.var_names_make_unique()
 
-adata.write("merged_counts_matrix.h5ad")
+merged.write("merged_counts_matrix.h5ad")

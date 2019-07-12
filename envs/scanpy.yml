@@ -1,0 +1,7 @@
+name: scanpy
+dependencies:
+  - python = 3.6.7
+  - anndata = 0.6.21
+  - scanpy = 1.4.3
+  - statsmodels
+  - bbknn
