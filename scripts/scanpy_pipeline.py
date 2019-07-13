@@ -58,10 +58,11 @@ sc.tl.pca(adata,n_comps = 15)
 bbknn.bbknn(adata,batch_key="dataset",n_pcs=15)
 sc.tl.louvain(adata,resolution=0.1,key_added="louvain0.1")
 sc.tl.louvain(adata,resolution=0.3,key_added="louvain0.3")
+sc.tl.louvain(adata,resolution=0.4,key_added="louvain0.4")
 sc.tl.louvain(adata,resolution=0.5,key_added="louvain0.5")
 sc.tl.louvain(adata,resolution=0.7,key_added="louvain0.7")
 sc.tl.louvain(adata,resolution=1.0,key_added="louvain1.0")
-sc.tl.louvain(adata,resolution=2.0,key_added="louvain2.0")
+
 
 sc.tl.umap(adata)
 sc.tl.tsne(adata,n_pcs=15)
