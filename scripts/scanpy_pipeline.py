@@ -51,8 +51,8 @@ adata._inplace_subset_obs(adata.obs['percent_mito'] < 0.25)
 sc.pp.log1p(adata)
 detect_doublets(adata,inplace=True)
 
-sc.pp.highly_variable_genes(adata,min_mean=0.0125,max_mean = 10000000,min_disp=1,max_disp=1000000,flavor="cell_ranger")
-adata.var["highly_variable"] = (adata.var["dispersions"] > 1) & (adata.var["means"]>0.0125) #use dispersions and not normalized dispersions
+sc.pp.highly_variable_genes(adata,min_mean=0.02,max_mean = 10000000,min_disp=1.2,max_disp=1000000,flavor="cell_ranger")
+adata.var["highly_variable"] = (adata.var["dispersions"] > 1.2) & (adata.var["means"]>0.02) #use dispersions and not normalized dispersions
 
 sc.tl.pca(adata,n_comps = 15)
 bbknn.bbknn(adata,batch_key="dataset",n_pcs=15)

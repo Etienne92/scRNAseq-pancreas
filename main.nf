@@ -93,7 +93,7 @@ CELLS_R.into{
 
 process DESeq2 {
     conda "${workflow.projectDir}/envs/Renv.yml"
-    memory { 4.GB * task.attempt }
+    memory { 8.GB * task.attempt }
     errorStrategy { task.exitStatus == 130 ? 'retry' : 'finish' }
     maxRetries 3
     publishDir "${PWD}/results/partial_results", mode: 'copy', overwrite: true
