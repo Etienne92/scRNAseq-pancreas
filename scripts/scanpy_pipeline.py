@@ -54,8 +54,8 @@ detect_doublets(adata,inplace=True)
 sc.pp.highly_variable_genes(adata,min_mean=0.0125,max_mean = 10000000,min_disp=1,max_disp=1000000,flavor="cell_ranger")
 adata.var["highly_variable"] = (adata.var["dispersions"] > 1) & (adata.var["means"]>0.0125) #use dispersions and not normalized dispersions
 
-sc.tl.pca(adata,n_comps = 20)
-bbknn.bbknn(adata,batch_key="dataset",n_pcs=20)
+sc.tl.pca(adata,n_comps = 15)
+bbknn.bbknn(adata,batch_key="dataset",n_pcs=15)
 sc.tl.louvain(adata,resolution=0.1,key_added="louvain0.1")
 sc.tl.louvain(adata,resolution=0.3,key_added="louvain0.3")
 sc.tl.louvain(adata,resolution=0.5,key_added="louvain0.5")
@@ -64,7 +64,7 @@ sc.tl.louvain(adata,resolution=1.0,key_added="louvain1.0")
 sc.tl.louvain(adata,resolution=2.0,key_added="louvain2.0")
 
 sc.tl.umap(adata)
-sc.tl.tsne(adata,n_pcs=20)
+sc.tl.tsne(adata,n_pcs=15)
 
 adata.write(args.o)
 

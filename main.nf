@@ -4,7 +4,7 @@ scripts="${workflow.projectDir}/scripts"
 
 process merge_matrices{
     conda "${workflow.projectDir}/envs/scanpy.yml"
-    memory { 16.GB * task.attempt }
+    memory { 8.GB * task.attempt }
     errorStrategy { task.exitStatus == 130 ? 'retry' : 'finish' }
     maxRetries 2
     output:
@@ -25,7 +25,7 @@ MERGED_COUNTS_MATRIX.into{
 
 process scanpy_pipeline {
     conda "${workflow.projectDir}/envs/scanpy.yml"
-    memory { 8.GB * task.attempt }
+    memory { 4.GB * task.attempt }
     errorStrategy { task.exitStatus == 130 ? 'retry' : 'finish' }
     maxRetries 2
     publishDir "${PWD}/results", mode: 'copy', overwrite: true
@@ -41,7 +41,7 @@ process scanpy_pipeline {
 
 process ordinary_least_squares {
     conda "${workflow.projectDir}/envs/scanpy.yml"
-    memory { 8.GB * task.attempt }
+    memory { 4.GB * task.attempt }
     errorStrategy { task.exitStatus == 130 ? 'retry' : 'finish' }
     maxRetries 2
     publishDir "${PWD}/results/partial_results", mode: 'copy', overwrite: true
@@ -93,9 +93,9 @@ CELLS_R.into{
 
 process DESeq2 {
     conda "${workflow.projectDir}/envs/Renv.yml"
-    memory { 8.GB * task.attempt }
+    memory { 4.GB * task.attempt }
     errorStrategy { task.exitStatus == 130 ? 'retry' : 'finish' }
-    maxRetries 2
+    maxRetries 3
     publishDir "${PWD}/results/partial_results", mode: 'copy', overwrite: true
     input:
         file counts from COUNTS_DESEQ2
@@ -115,7 +115,7 @@ process edgeR {
     conda "${workflow.projectDir}/envs/Renv.yml"
     memory { 4.GB * task.attempt }
     errorStrategy { task.exitStatus == 130 ? 'retry' : 'finish' }
-    maxRetries 2
+    maxRetries 3
     publishDir "${PWD}/results/partial_results", mode: 'copy', overwrite: true
     input:
         file counts from COUNTS_EDGER
@@ -192,7 +192,7 @@ process merge_results {
 
 process boxplots {
     conda "${workflow.projectDir}/envs/scanpy.yml"
-    memory { 8.GB * task.attempt }
+    memory { 16.GB * task.attempt }
     errorStrategy { task.exitStatus == 130 ? 'retry' : 'finish' }
     maxRetries 2
     publishDir "${PWD}/results", mode: 'copy', overwrite: true

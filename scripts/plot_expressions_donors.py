@@ -114,12 +114,12 @@ def correct_covariates(df,gene,covariates=["dataset","sex"]):
 results = pd.read_csv(args.results,index_col=0)
 genes = {}
 for method in results.columns:
-        for i in range(results.shape[0]):
+        for i in range(15):
                 entry = results.loc[i,method]
                 gene = entry[:entry.find("(")-1]
-                adj_pvalue = float(entry[entry.find("(")+1:entry.find(")")])
-                if adj_pvalue>0.05:
-                        break
+                #adj_pvalue = float(entry[entry.find("(")+1:entry.find(")")])
+                #if adj_pvalue>0.05:
+                #        break
                 if gene in adata.var.index:
                         genes[gene] = 1
                 elif (gene[:-1] + "." + gene[-1]) in adata.var.index: #The . in the gene names are removed for the differential expression because they interfere with the R syntax.
