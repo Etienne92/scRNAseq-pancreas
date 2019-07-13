@@ -10,6 +10,7 @@ The pipeline outputs are:
 - a processed anndata object, which contains clusters, UMAP coordinates and metadata. This is meant to be visualized with a tool like cellxgene.
 - The ranked list of differentially expressed genes with their adjusted p-values, for each method.
 - Boxplots of the most differentially expressed genes.
+
 They are located in a directory called results.
 
 ## Execution
